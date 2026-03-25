@@ -1,7 +1,11 @@
 import * as THREE from "three";
-import type { HandParams } from "./types";
+import type { HandParams, TwoHandParams } from "./types";
 
 const PARTICLE_COUNT = 2000;
+
+const DEFAULT_HAND: HandParams = {
+  index: 0, middle: 0, ring: 0, pinky: 0, detected: false,
+};
 
 export class Visualizer {
   private scene: THREE.Scene;
@@ -10,12 +14,9 @@ export class Visualizer {
   private particles: THREE.Points;
   private geometry: THREE.BufferGeometry;
   private basePositions: Float32Array;
-  private params: HandParams = {
-    index: 0,
-    middle: 0,
-    ring: 0,
-    pinky: 0,
-    detected: false,
+  private params: TwoHandParams = {
+    right: { ...DEFAULT_HAND },
+    left: { ...DEFAULT_HAND },
   };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -86,51 +87,71 @@ export class Visualizer {
     this.renderer.setSize(w, h);
   }
 
-  update(params: HandParams) {
+  update(params: TwoHandParams) {
     this.params = params;
   }
 
   render(time: number) {
-    const { index, middle, ring, pinky, detected } = this.params;
+    const { right, left } = this.params;
+    const anyDetected = right.detected || left.detected;
     const positions = this.geometry.attributes.position
       .array as Float32Array;
     const colors = this.geometry.attributes.color.array as Float32Array;
 
     const mat = this.particles.material as THREE.PointsMaterial;
-    const targetOpacity = detected ? 0.9 : 0.4;
+    const targetOpacity = anyDetected ? 0.9 : 0.4;
     mat.opacity += (targetOpacity - mat.opacity) * 0.05;
 
-    // Size responds to filter (index finger)
-    const targetSize = detected ? 0.025 + index * 0.04 : 0.035;
+    // Size: right index (filter) + left middle (volume)
+    const sizeR = right.detected ? right.index * 0.04 : 0;
+    const sizeL = left.detected ? left.middle * 0.03 : 0;
+    const targetSize = anyDetected ? 0.025 + sizeR + sizeL : 0.035;
     mat.size += (targetSize - mat.size) * 0.08;
 
-    // Color: hue from filter (index), saturation from distortion (pinky)
-    const hue = detected ? 0.55 + index * 0.35 : 0.6;
-    const sat = detected ? 0.4 + pinky * 0.5 : 0.3;
-    const lightness = detected ? 0.5 + middle * 0.15 : 0.45;
+    // Color: right hand sets hue/sat, left hand shifts hue + brightness
+    const hueR = right.detected ? 0.55 + right.index * 0.35 : 0.6;
+    const hueShift = left.detected ? left.index * 0.2 : 0;
+    const hue = (hueR + hueShift) % 1.0;
+    const sat = right.detected ? 0.4 + right.pinky * 0.5 : 0.3;
+    const lightBase = right.detected ? 0.5 + right.middle * 0.15 : 0.45;
+    const lightBoost = left.detected ? left.middle * 0.15 : 0;
+    const lightness = Math.min(lightBase + lightBoost, 0.85);
     const color = new THREE.Color().setHSL(hue, sat, lightness);
+
+    // Left ring -> tremolo pulsing of scale
+    const tremoloAmt = left.detected ? left.ring * 0.15 : 0;
+    const tremoloPulse = 1 + Math.sin(time * 12 * (left.detected ? left.ring : 0)) * tremoloAmt;
+
+    // Left pinky -> rotation turbulence / spread wobble
+    const turbulence = left.detected ? left.pinky * 0.4 : 0;
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const bx = this.basePositions[i * 3];
       const by = this.basePositions[i * 3 + 1];
       const bz = this.basePositions[i * 3 + 2];
 
-      // Sphere expands with reverb (middle finger)
-      const spread = 1 + (detected ? middle * 1.5 : 0);
+      // Right middle -> sphere expansion (reverb)
+      const spread = 1 + (right.detected ? right.middle * 1.5 : 0);
 
-      // Distortion jitter (pinky finger)
-      const jitterAmt = detected ? pinky * 0.35 : 0;
+      // Right pinky -> jitter (distortion)
+      const jitterAmt = right.detected ? right.pinky * 0.35 : 0;
       const jitterPhase = Math.sin(i * 12.9898 + time * 8.0) * 0.5 + 0.5;
       const jitter = jitterAmt * jitterPhase;
 
-      // Delay wave displacement (ring finger)
-      const wave = detected
-        ? Math.sin(time * 3 + i * 0.02) * ring * 0.25
+      // Right ring -> wave displacement (delay)
+      const wave = right.detected
+        ? Math.sin(time * 3 + i * 0.02) * right.ring * 0.25
         : 0;
 
-      positions[i * 3] = bx * (spread + jitter) + wave * 0.5;
-      positions[i * 3 + 1] = by * (spread + jitter);
-      positions[i * 3 + 2] = bz * (spread + jitter) + wave * 0.5;
+      // Left pinky -> turbulence offset per particle
+      const turb = turbulence > 0
+        ? Math.sin(i * 7.13 + time * 5) * Math.cos(i * 3.71 + time * 3.7) * turbulence
+        : 0;
+
+      const s = (spread + jitter) * tremoloPulse;
+      positions[i * 3] = bx * s + wave * 0.5 + turb;
+      positions[i * 3 + 1] = by * s + turb * 0.7;
+      positions[i * 3 + 2] = bz * s + wave * 0.5 - turb * 0.5;
 
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
@@ -140,7 +161,9 @@ export class Visualizer {
     this.geometry.attributes.position.needsUpdate = true;
     this.geometry.attributes.color.needsUpdate = true;
 
-    this.particles.rotation.y = time * 0.12;
+    // Left index (pitch) affects rotation speed
+    const rotSpeed = 0.12 + (left.detected ? left.index * 0.3 : 0);
+    this.particles.rotation.y = time * rotSpeed;
     this.particles.rotation.x = Math.sin(time * 0.07) * 0.2;
 
     this.renderer.render(this.scene, this.camera);

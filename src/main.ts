@@ -2,7 +2,7 @@ import { HandTracker } from "./hand-tracking";
 import { analyzeHand } from "./hand-analysis";
 import { AudioEngine } from "./audio";
 import { Visualizer } from "./visualizer";
-import type { HandParams, Landmark } from "./types";
+import type { HandParams, Landmark, TwoHandParams } from "./types";
 
 const DEFAULT_PARAMS: HandParams = {
   index: 0,
@@ -26,12 +26,11 @@ function drawHandWireframe(
   ctx: CanvasRenderingContext2D,
   landmarks: Landmark[],
   w: number,
-  h: number
+  h: number,
+  strokeColor: string,
+  jointColor: string
 ) {
-  ctx.clearRect(0, 0, w, h);
-
-  // Connections
-  ctx.strokeStyle = "rgba(0, 255, 180, 0.6)";
+  ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 2;
   for (const [a, b] of HAND_CONNECTIONS) {
     ctx.beginPath();
@@ -40,16 +39,23 @@ function drawHandWireframe(
     ctx.stroke();
   }
 
-  // Joints
   for (let i = 0; i < landmarks.length; i++) {
     const { x, y } = landmarks[i];
     ctx.beginPath();
     ctx.arc(x * w, y * h, 3, 0, Math.PI * 2);
     ctx.fillStyle = i === 8 || i === 12 || i === 16 || i === 20
-      ? "rgba(255, 255, 255, 0.9)"  // fingertips bright
-      : "rgba(0, 255, 180, 0.8)";
+      ? "rgba(255, 255, 255, 0.9)"
+      : jointColor;
     ctx.fill();
   }
+}
+
+function smoothHand(smoothed: HandParams, raw: HandParams, alpha: number) {
+  smoothed.index += (raw.index - smoothed.index) * alpha;
+  smoothed.middle += (raw.middle - smoothed.middle) * alpha;
+  smoothed.ring += (raw.ring - smoothed.ring) * alpha;
+  smoothed.pinky += (raw.pinky - smoothed.pinky) * alpha;
+  smoothed.detected = raw.detected;
 }
 
 async function main() {
@@ -61,14 +67,12 @@ async function main() {
   const statusEl = document.getElementById("status") as HTMLDivElement;
   const paramsEl = document.getElementById("params") as HTMLDivElement;
 
-  // Start webcam
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { width: 640, height: 480, facingMode: "user" },
   });
   video.srcObject = stream;
   await video.play();
 
-  // Load hand tracking model
   statusEl.textContent = "Loading hand tracking model...";
   const tracker = new HandTracker(video);
   await tracker.init();
@@ -79,7 +83,8 @@ async function main() {
   statusEl.textContent = "Ready -- click Start to begin";
 
   let running = false;
-  let smoothed = { ...DEFAULT_PARAMS };
+  let smoothedRight = { ...DEFAULT_PARAMS };
+  let smoothedLeft = { ...DEFAULT_PARAMS };
   const SMOOTH = 0.15;
 
   startBtn.addEventListener("click", async () => {
@@ -87,13 +92,14 @@ async function main() {
       await audio.start();
       running = true;
       startBtn.textContent = "Stop";
-      statusEl.textContent = "Show your hand to the camera";
+      statusEl.textContent = "Show your hands to the camera";
     } else {
       audio.stop();
       running = false;
       startBtn.textContent = "Start";
       statusEl.textContent = "Stopped";
-      smoothed = { ...DEFAULT_PARAMS };
+      smoothedRight = { ...DEFAULT_PARAMS };
+      smoothedLeft = { ...DEFAULT_PARAMS };
     }
   });
 
@@ -101,39 +107,47 @@ async function main() {
     const time = timestamp / 1000;
 
     if (running) {
-      const landmarks = tracker.detect(performance.now());
-      const raw = landmarks ? analyzeHand(landmarks) : { ...DEFAULT_PARAMS };
+      const hands = tracker.detect(performance.now());
+      const rawRight = hands.right ? analyzeHand(hands.right) : { ...DEFAULT_PARAMS };
+      const rawLeft = hands.left ? analyzeHand(hands.left) : { ...DEFAULT_PARAMS };
 
-      // Exponential smoothing
-      smoothed.index += (raw.index - smoothed.index) * SMOOTH;
-      smoothed.middle += (raw.middle - smoothed.middle) * SMOOTH;
-      smoothed.ring += (raw.ring - smoothed.ring) * SMOOTH;
-      smoothed.pinky += (raw.pinky - smoothed.pinky) * SMOOTH;
-      smoothed.detected = raw.detected;
+      smoothHand(smoothedRight, rawRight, SMOOTH);
+      smoothHand(smoothedLeft, rawLeft, SMOOTH);
 
-      audio.update(smoothed);
-      viz.update(smoothed);
+      const twoHands: TwoHandParams = { right: smoothedRight, left: smoothedLeft };
+      audio.update(twoHands);
+      viz.update(twoHands);
 
-      // Draw hand wireframe overlay
+      // Draw hand wireframes
       overlay.width = video.videoWidth;
       overlay.height = video.videoHeight;
-      if (landmarks) {
-        drawHandWireframe(overlayCtx, landmarks, overlay.width, overlay.height);
-      } else {
-        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+      if (hands.right) {
+        drawHandWireframe(
+          overlayCtx, hands.right, overlay.width, overlay.height,
+          "rgba(0, 255, 180, 0.6)", "rgba(0, 255, 180, 0.8)"
+        );
+      }
+      if (hands.left) {
+        drawHandWireframe(
+          overlayCtx, hands.left, overlay.width, overlay.height,
+          "rgba(255, 140, 50, 0.6)", "rgba(255, 140, 50, 0.8)"
+        );
       }
 
       // HUD
-      if (raw.detected) {
-        paramsEl.textContent = [
-          `Filter ${pct(smoothed.index)}`,
-          `Reverb ${pct(smoothed.middle)}`,
-          `Delay ${pct(smoothed.ring)}`,
-          `Distort ${pct(smoothed.pinky)}`,
-        ].join("  |  ");
-      } else {
-        paramsEl.textContent = "No hand detected";
+      const lines: string[] = [];
+      if (rawRight.detected) {
+        lines.push(
+          `R: Filter ${pct(smoothedRight.index)}  Reverb ${pct(smoothedRight.middle)}  Delay ${pct(smoothedRight.ring)}  Distort ${pct(smoothedRight.pinky)}`
+        );
       }
+      if (rawLeft.detected) {
+        lines.push(
+          `L: Pitch ${pct(smoothedLeft.index)}  Volume ${pct(smoothedLeft.middle)}  Tremolo ${pct(smoothedLeft.ring)}  Spread ${pct(smoothedLeft.pinky)}`
+        );
+      }
+      paramsEl.textContent = lines.length > 0 ? lines.join("\n") : "No hands detected";
     }
 
     viz.render(time);

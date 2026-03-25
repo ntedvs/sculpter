@@ -2,7 +2,7 @@ import {
   HandLandmarker,
   FilesetResolver,
 } from "@mediapipe/tasks-vision";
-import type { Landmark } from "./types";
+import type { Landmark, TrackedHands } from "./types";
 
 export class HandTracker {
   private handLandmarker: HandLandmarker | null = null;
@@ -24,24 +24,31 @@ export class HandTracker {
         delegate: "GPU",
       },
       runningMode: "VIDEO",
-      numHands: 1,
+      numHands: 2,
       minHandDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5,
     });
   }
 
-  detect(timestamp: number): Landmark[] | null {
-    if (!this.handLandmarker) return null;
-    if (this.video.readyState < 2) return null;
+  detect(timestamp: number): TrackedHands {
+    const result: TrackedHands = { right: null, left: null };
+    if (!this.handLandmarker) return result;
+    if (this.video.readyState < 2) return result;
 
-    // Ensure monotonically increasing timestamps
     const ts = Math.max(timestamp, this.lastTimestamp + 1);
     this.lastTimestamp = ts;
 
     const results = this.handLandmarker.detectForVideo(this.video, ts);
-    if (results.landmarks && results.landmarks.length > 0) {
-      return results.landmarks[0] as Landmark[];
+    if (!results.landmarks || !results.handednesses) return result;
+
+    for (let i = 0; i < results.landmarks.length; i++) {
+      const label = results.handednesses[i]?.[0]?.categoryName;
+      if (label === "Right") {
+        result.right = results.landmarks[i] as Landmark[];
+      } else if (label === "Left") {
+        result.left = results.landmarks[i] as Landmark[];
+      }
     }
-    return null;
+    return result;
   }
 }
