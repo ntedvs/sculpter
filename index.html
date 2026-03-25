@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Effect Sculptor</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #0a0a0f;
+        color: #ccc;
+        font-family: "SF Mono", "Fira Code", monospace;
+        overflow: hidden;
+      }
+
+      #canvas3d {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+      }
+
+      #cam-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 600px;
+        z-index: 10;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transform: scaleX(-1);
+      }
+
+      #video {
+        width: 100%;
+        display: block;
+      }
+
+      #hand-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        padding: 20px;
+        z-index: 10;
+        pointer-events: none;
+      }
+
+      h1 {
+        font-size: 14px;
+        font-weight: 400;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        opacity: 0.5;
+      }
+
+      #status {
+        margin-top: 8px;
+        font-size: 12px;
+        opacity: 0.4;
+      }
+
+      #params {
+        margin-top: 12px;
+        font-size: 13px;
+        opacity: 0.6;
+        letter-spacing: 1px;
+      }
+
+      #controls {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 10;
+      }
+
+      #start-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #ccc;
+        padding: 10px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        transition: all 0.2s;
+      }
+
+      #start-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      #guide {
+        position: fixed;
+        bottom: 80px;
+        left: 20px;
+        z-index: 10;
+        font-size: 11px;
+        opacity: 0.35;
+        line-height: 1.8;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas3d"></canvas>
+    <div id="cam-container">
+      <video id="video" autoplay playsinline></video>
+      <canvas id="hand-overlay"></canvas>
+    </div>
+
+    <div id="overlay">
+      <h1>Effect Sculptor</h1>
+      <div id="status">Initializing...</div>
+      <div id="params"></div>
+    </div>
+
+    <div id="guide">
+      Index finger &rarr; Filter cutoff<br />
+      Middle finger &rarr; Reverb<br />
+      Ring finger &rarr; Delay<br />
+      Pinky finger &rarr; Distortion
+    </div>
+
+    <div id="controls">
+      <button id="start-btn">Start</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
