@@ -4,7 +4,11 @@ import type { HandParams, TwoHandParams } from "./types";
 const PARTICLE_COUNT = 2000;
 
 const DEFAULT_HAND: HandParams = {
-  index: 0, middle: 0, ring: 0, pinky: 0, detected: false,
+  index: 0,
+  middle: 0,
+  ring: 0,
+  pinky: 0,
+  detected: false,
 };
 
 export class Visualizer {
@@ -25,7 +29,6 @@ export class Visualizer {
 
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
     this.camera.position.z = 4;
-    this.camera.position.x = 1.2;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -57,10 +60,7 @@ export class Visualizer {
       colors[i * 3 + 2] = 1.0;
     }
 
-    this.geometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(positions, 3)
-    );
+    this.geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     this.geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
     const material = new THREE.PointsMaterial({
@@ -94,8 +94,7 @@ export class Visualizer {
   render(time: number) {
     const { right, left } = this.params;
     const anyDetected = right.detected || left.detected;
-    const positions = this.geometry.attributes.position
-      .array as Float32Array;
+    const positions = this.geometry.attributes.position.array as Float32Array;
     const colors = this.geometry.attributes.color.array as Float32Array;
 
     const mat = this.particles.material as THREE.PointsMaterial;
@@ -139,14 +138,13 @@ export class Visualizer {
       const jitter = jitterAmt * jitterPhase;
 
       // Right ring -> wave displacement (delay)
-      const wave = right.detected
-        ? Math.sin(time * 3 + i * 0.02) * right.ring * 0.25
-        : 0;
+      const wave = right.detected ? Math.sin(time * 3 + i * 0.02) * right.ring * 0.25 : 0;
 
       // Left pinky -> turbulence offset per particle
-      const turb = turbulence > 0
-        ? Math.sin(i * 7.13 + time * 5) * Math.cos(i * 3.71 + time * 3.7) * turbulence
-        : 0;
+      const turb =
+        turbulence > 0
+          ? Math.sin(i * 7.13 + time * 5) * Math.cos(i * 3.71 + time * 3.7) * turbulence
+          : 0;
 
       const s = (spread + jitter) * tremoloPulse;
       positions[i * 3] = bx * s + wave * 0.5 + turb;

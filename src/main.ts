@@ -14,12 +14,27 @@ const DEFAULT_PARAMS: HandParams = {
 
 // MediaPipe hand skeleton connections
 const HAND_CONNECTIONS: [number, number][] = [
-  [0, 1], [1, 2], [2, 3], [3, 4],           // thumb
-  [0, 5], [5, 6], [6, 7], [7, 8],           // index
-  [5, 9], [9, 10], [10, 11], [11, 12],      // middle
-  [9, 13], [13, 14], [14, 15], [15, 16],    // ring
-  [13, 17], [17, 18], [18, 19], [19, 20],   // pinky
-  [0, 17],                                    // wrist to pinky base
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4], // thumb
+  [0, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8], // index
+  [5, 9],
+  [9, 10],
+  [10, 11],
+  [11, 12], // middle
+  [9, 13],
+  [13, 14],
+  [14, 15],
+  [15, 16], // ring
+  [13, 17],
+  [17, 18],
+  [18, 19],
+  [19, 20], // pinky
+  [0, 17], // wrist to pinky base
 ];
 
 function drawHandWireframe(
@@ -28,7 +43,7 @@ function drawHandWireframe(
   w: number,
   h: number,
   strokeColor: string,
-  jointColor: string
+  jointColor: string,
 ) {
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = 2;
@@ -43,9 +58,8 @@ function drawHandWireframe(
     const { x, y } = landmarks[i];
     ctx.beginPath();
     ctx.arc(x * w, y * h, 3, 0, Math.PI * 2);
-    ctx.fillStyle = i === 8 || i === 12 || i === 16 || i === 20
-      ? "rgba(255, 255, 255, 0.9)"
-      : jointColor;
+    ctx.fillStyle =
+      i === 8 || i === 12 || i === 16 || i === 20 ? "rgba(255, 255, 255, 0.9)" : jointColor;
     ctx.fill();
   }
 }
@@ -79,6 +93,17 @@ async function main() {
 
   const audio = new AudioEngine();
   const viz = new Visualizer(canvas3d);
+  const songInput = document.getElementById("song-input") as HTMLInputElement;
+  const songName = document.getElementById("song-name") as HTMLDivElement;
+
+  songInput.addEventListener("change", async () => {
+    const file = songInput.files?.[0];
+    if (!file) return;
+    songName.textContent = file.name;
+    statusEl.textContent = "Loading song...";
+    await audio.loadSong(file);
+    statusEl.textContent = "Song loaded -- click Start to begin";
+  });
 
   statusEl.textContent = "Ready -- click Start to begin";
 
@@ -124,14 +149,22 @@ async function main() {
       overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
       if (hands.right) {
         drawHandWireframe(
-          overlayCtx, hands.right, overlay.width, overlay.height,
-          "rgba(0, 255, 180, 0.6)", "rgba(0, 255, 180, 0.8)"
+          overlayCtx,
+          hands.right,
+          overlay.width,
+          overlay.height,
+          "rgba(0, 255, 180, 0.6)",
+          "rgba(0, 255, 180, 0.8)",
         );
       }
       if (hands.left) {
         drawHandWireframe(
-          overlayCtx, hands.left, overlay.width, overlay.height,
-          "rgba(255, 140, 50, 0.6)", "rgba(255, 140, 50, 0.8)"
+          overlayCtx,
+          hands.left,
+          overlay.width,
+          overlay.height,
+          "rgba(255, 140, 50, 0.6)",
+          "rgba(255, 140, 50, 0.8)",
         );
       }
 
@@ -139,12 +172,12 @@ async function main() {
       const lines: string[] = [];
       if (rawRight.detected) {
         lines.push(
-          `R: Filter ${pct(smoothedRight.index)}  Reverb ${pct(smoothedRight.middle)}  Delay ${pct(smoothedRight.ring)}  Distort ${pct(smoothedRight.pinky)}`
+          `R: Filter ${pct(smoothedRight.index)}  Reverb ${pct(smoothedRight.middle)}  Delay ${pct(smoothedRight.ring)}  Distort ${pct(smoothedRight.pinky)}`,
         );
       }
       if (rawLeft.detected) {
         lines.push(
-          `L: Pitch ${pct(smoothedLeft.index)}  Volume ${pct(smoothedLeft.middle)}  Tremolo ${pct(smoothedLeft.ring)}  Spread ${pct(smoothedLeft.pinky)}`
+          `L: Pitch ${pct(smoothedLeft.index)}  Volume ${pct(smoothedLeft.middle)}  Tremolo ${pct(smoothedLeft.ring)}  Spread ${pct(smoothedLeft.pinky)}`,
         );
       }
       paramsEl.textContent = lines.length > 0 ? lines.join("\n") : "No hands detected";

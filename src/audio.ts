@@ -3,6 +3,7 @@ import type { TwoHandParams } from "./types";
 
 export class AudioEngine {
   private osc: Tone.FatOscillator;
+  private player: Tone.Player | null = null;
   private filter: Tone.Filter;
   private reverb: Tone.Reverb;
   private delay: Tone.FeedbackDelay;
@@ -11,6 +12,7 @@ export class AudioEngine {
   private lfo: Tone.LFO;
   private lfoGain: Tone.Gain;
   private started = false;
+  private songLoaded = false;
 
   constructor() {
     this.osc = new Tone.FatOscillator({
@@ -55,15 +57,44 @@ export class AudioEngine {
       this.reverb,
       this.lfoGain,
       this.gain,
-      Tone.getDestination()
+      Tone.getDestination(),
     );
+  }
+
+  async loadSong(file: File) {
+    const url = URL.createObjectURL(file);
+    if (this.player) {
+      this.player.stop();
+      this.player.dispose();
+    }
+    this.player = new Tone.Player({ url, loop: true });
+    await Tone.loaded();
+    this.player.chain(
+      this.filter,
+      this.distortion,
+      this.delay,
+      this.reverb,
+      this.lfoGain,
+      this.gain,
+      Tone.getDestination(),
+    );
+    // Mute oscillator, switch to song
+    if (this.started) {
+      this.osc.stop();
+      this.player.start();
+    }
+    this.songLoaded = true;
   }
 
   async start() {
     if (this.started) return;
     await Tone.start();
     await this.reverb.ready;
-    this.osc.start();
+    if (this.songLoaded && this.player) {
+      this.player.start();
+    } else {
+      this.osc.start();
+    }
     this.lfo.start();
     this.started = true;
   }
@@ -97,14 +128,21 @@ export class AudioEngine {
 
     // --- Left hand: tone shaping ---
     if (!left.detected) {
-      this.osc.frequency.rampTo(110, 0.3);
+      if (!this.songLoaded) {
+        this.osc.frequency.rampTo(110, 0.3);
+        this.osc.spread = 20;
+      }
       this.gain.gain.rampTo(0.25, 0.3);
       this.lfo.frequency.rampTo(0, 0.3);
-      this.osc.spread = 20;
     } else {
-      // Index -> pitch (55 Hz to 440 Hz, 3 octaves)
-      const pitch = 55 * Math.pow(8, left.index);
-      this.osc.frequency.rampTo(pitch, 0.08);
+      if (!this.songLoaded) {
+        // Index -> pitch (55 Hz to 440 Hz, 3 octaves)
+        const pitch = 55 * Math.pow(8, left.index);
+        this.osc.frequency.rampTo(pitch, 0.08);
+
+        // Pinky -> oscillator spread/detune (5 to 80)
+        this.osc.spread = 5 + left.pinky * 75;
+      }
 
       // Middle -> volume (0.05 to 0.5)
       const vol = 0.05 + left.middle * 0.45;
@@ -112,15 +150,16 @@ export class AudioEngine {
 
       // Ring -> tremolo rate (0 to 12 Hz)
       this.lfo.frequency.rampTo(left.ring * 12, 0.08);
-
-      // Pinky -> oscillator spread/detune (5 to 80)
-      this.osc.spread = 5 + left.pinky * 75;
     }
   }
 
   stop() {
     if (!this.started) return;
-    this.osc.stop();
+    if (this.songLoaded && this.player) {
+      this.player.stop();
+    } else {
+      this.osc.stop();
+    }
     this.lfo.stop();
     this.started = false;
   }

@@ -1,7 +1,4 @@
-import {
-  HandLandmarker,
-  FilesetResolver,
-} from "@mediapipe/tasks-vision";
+import { HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import type { Landmark, TrackedHands } from "./types";
 
 export class HandTracker {
@@ -15,7 +12,7 @@ export class HandTracker {
 
   async init() {
     const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm"
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm",
     );
     this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
       baseOptions: {

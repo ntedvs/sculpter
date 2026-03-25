@@ -25,7 +25,7 @@ function fingerExtension(
   landmarks: Landmark[],
   tipIdx: number,
   mcpIdx: number,
-  handSize: number
+  handSize: number,
 ): number {
   const d = dist(landmarks[tipIdx], landmarks[mcpIdx]);
   // Typical range: ~0.25*handSize (curled) to ~0.9*handSize (extended)
